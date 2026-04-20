@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>ArmGuard Health Monitor</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0a0f;
+    --border: #1e1e2e;
+    --green: #00f5a0;
+    --yellow: #f5c400;
+    --red: #ff4757;
+    --blue: #4dabf7;
+    --orange: #ff8c42;
+    --text: #e8e8f0;
+    --muted: #555570;
+    --card: #0f0f18;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body { background: var(--bg); color: var(--text); font-family: 'Syne', sans-serif; min-height: 100vh; overflow-x: hidden; }
+  body::before {
+    content: ''; position: fixed; inset: 0;
+    background-image: linear-gradient(rgba(0,245,160,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(0,245,160,0.03) 1px, transparent 1px);
+    background-size: 40px 40px; pointer-events: none; z-index: 0;
+  }
+  .app { position: relative; z-index: 1; max-width: 420px; margin: 0 auto; padding: 24px 20px 40px; min-height: 100vh; display: flex; flex-direction: column; gap: 16px; }
+  .header { display: flex; align-items: center; justify-content: space-between; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+  .header-title { font-size: 13px; font-weight: 700; letter-spacing: 0.15em; text-transform: uppercase; color: var(--muted); }
+  .header-logo { font-size: 18px; font-weight: 800; color: var(--green); letter-spacing: -0.02em; }
+  .status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); transition: all 0.4s; }
+  .status-dot.connected { background: var(--green); box-shadow: 0 0 8px var(--green); animation: pulse-dot 2s ease-in-out infinite; }
+  @keyframes pulse-dot { 0%, 100% { box-shadow: 0 0 6px var(--green); } 50% { box-shadow: 0 0 16px var(--green); } }
+  .connect-btn { width: 100%; padding: 16px; border-radius: 12px; border: 1px solid var(--green); background: transparent; color: var(--green); font-family: 'Syne', sans-serif; font-size: 15px; font-weight: 700; letter-spacing: 0.05em; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; justify-content: center; gap: 10px; }
+  .connect-btn:active { transform: scale(0.98); }
+  .connect-btn.connected { background: rgba(0,245,160,0.08); }
+  .connect-btn svg { width: 18px; height: 18px; flex-shrink: 0; }
+  .metrics-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .metric-card { background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 20px 16px 16px; display: flex; flex-direction: column; gap: 4px; position: relative; overflow: hidden; transition: border-color 0.4s; }
+  .metric-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px; background: var(--accent-color, var(--muted)); transition: background 0.4s; }
+  .metric-card.wide { grid-column: span 2; padding: 16px 20px; flex-direction: row; align-items: center; justify-content: space-between; }
+  .metric-label { font-size: 10px; font-weight: 700; letter-spacing: 0.15em; text-transform: uppercase; color: var(--muted); font-family: 'DM Mono', monospace; }
+  .metric-value { font-size: 56px; font-weight: 800; line-height: 1; color: var(--text); letter-spacing: -0.03em; transition: color 0.4s; font-family: 'Syne', sans-serif; }
+  .metric-value.normal { color: var(--green); }
+  .metric-value.warning { color: var(--yellow); }
+  .metric-value.danger { color: var(--red); }
+  .metric-value.pending { color: var(--muted); }
+  .metric-value.temp-normal { color: var(--blue); }
+  .metric-value.temp-warm { color: var(--orange); }
+  .metric-value.temp-fever { color: var(--red); }
+  .metric-unit { font-size: 12px; font-weight: 400; color: var(--muted); font-family: 'DM Mono', monospace; letter-spacing: 0.05em; }
+  .metric-info { display: flex; flex-direction: column; gap: 2px; }
+  .waveform { height: 32px; margin-top: 8px; opacity: 0.4; }
+  .waveform svg { width: 100%; height: 100%; }
+  .ai-card { background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 20px; display: flex; flex-direction: column; gap: 12px; }
+  .ai-card-header { display: flex; align-items: center; justify-content: space-between; }
+  .ai-label { font-size: 10px; font-weight: 700; letter-spacing: 0.15em; text-transform: uppercase; color: var(--muted); font-family: 'DM Mono', monospace; }
+  .ai-badge { font-size: 10px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; padding: 3px 10px; border-radius: 20px; font-family: 'DM Mono', monospace; transition: all 0.4s; }
+  .ai-badge.normal { background: rgba(0,245,160,0.15); color: var(--green); }
+  .ai-badge.warning { background: rgba(245,196,0,0.15); color: var(--yellow); }
+  .ai-badge.danger { background: rgba(255,71,87,0.15); color: var(--red); }
+  .ai-badge.idle { background: rgba(85,85,112,0.2); color: var(--muted); }
+  .ai-message { font-size: 15px; font-weight: 400; color: var(--text); line-height: 1.6; min-height: 48px; }
+  .ai-recommendation { font-size: 12px; color: var(--muted); font-family: 'DM Mono', monospace; line-height: 1.5; padding-top: 8px; border-top: 1px solid var(--border); }
+  .history-card { background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 16px 20px; }
+  .history-label { font-size: 10px; font-weight: 700; letter-spacing: 0.15em; text-transform: uppercase; color: var(--muted); font-family: 'DM Mono', monospace; margin-bottom: 12px; }
+  .history-row { display: flex; gap: 6px; align-items: flex-end; height: 40px; }
+  .history-bar { flex: 1; border-radius: 3px; background: var(--border); transition: all 0.3s; min-height: 4px; }
+  .footer { text-align: center; font-size: 11px; color: var(--muted); font-family: 'DM Mono', monospace; letter-spacing: 0.05em; padding-top: 8px; border-top: 1px solid var(--border); line-height: 1.6; }
+  @keyframes shimmer { 0%, 100% { opacity: 0.4; } 50% { opacity: 0.8; } }
+  .loading { animation: shimmer 1.5s ease-in-out infinite; }
+  @keyframes heartbeat { 0%, 100% { transform: scale(1); } 14% { transform: scale(1.06); } 28% { transform: scale(1); } 42% { transform: scale(1.04); } 56% { transform: scale(1); } }
+  .beating { animation: heartbeat 1s ease-in-out; }
+  .not-supported { background: rgba(255,71,87,0.1); border: 1px solid rgba(255,71,87,0.3); border-radius: 12px; padding: 16px; font-size: 13px; color: var(--red); font-family: 'DM Mono', monospace; line-height: 1.6; display: none; }
+  .disclaimer { background: rgba(245,196,0,0.05); border: 1px solid rgba(245,196,0,0.15); border-radius: 12px; padding: 12px 16px; font-size: 11px; color: var(--muted); font-family: 'DM Mono', monospace; line-height: 1.6; }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="header">
+    <span class="header-title">Live Monitor</span>
+    <span class="header-logo">ArmGuard</span>
+    <div class="status-dot" id="statusDot"></div>
+  </div>
+
+  <div class="not-supported" id="notSupported">
+    Web Bluetooth is not supported in this browser.<br>
+    On iPhone: use <strong>Bluefy browser</strong> from the App Store.
+  </div>
+
+  <button class="connect-btn" id="connectBtn" onclick="toggleConnect()">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M12 2L12 6M12 18L12 22M4.93 4.93L7.76 7.76M16.24 16.24L19.07 19.07M2 12L6 12M18 12L22 12M4.93 19.07L7.76 16.24M16.24 7.76L19.07 4.93"/>
+    </svg>
+    <span id="connectText">Connect to HealthMonitor</span>
+  </button>
+
+  <div class="metrics-row">
+    <div class="metric-card" id="hrCard" style="--accent-color: var(--muted)">
+      <div class="metric-label">Heart Rate</div>
+      <div class="metric-value pending loading" id="hrValue">--</div>
+      <div class="metric-unit">BPM</div>
+      <div class="waveform"><svg viewBox="0 0 100 32" preserveAspectRatio="none"><polyline id="hrWave" points="0,16 100,16" fill="none" stroke="var(--muted)" stroke-width="1.5" stroke-linecap="round"/></svg></div>
+    </div>
+
+    <div class="metric-card" id="spo2Card" style="--accent-color: var(--muted)">
+      <div class="metric-label">Blood Oxygen</div>
+      <div class="metric-value pending loading" id="spo2Value">--</div>
+      <div class="metric-unit">SpO2 %</div>
+      <div class="waveform"><svg viewBox="0 0 100 32" preserveAspectRatio="none"><polyline id="spo2Wave" points="0,16 100,16" fill="none" stroke="var(--muted)" stroke-width="1.5" stroke-linecap="round"/></svg></div>
+    </div>
+
+    <div class="metric-card wide" id="tempCard" style="--accent-color: var(--muted)">
+      <div class="metric-info">
+        <div class="metric-label">Body Temperature</div>
+        <div class="metric-value pending loading" id="tempValue" style="font-size: 44px;">--</div>
+      </div>
+      <div class="metric-info" style="align-items: flex-end; text-align: right;">
+        <div class="metric-unit">°F</div>
+        <div class="metric-unit" id="tempCelsius" style="opacity: 0.5;">-- °C</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="ai-card" id="aiCard">
+    <div class="ai-card-header">
+      <span class="ai-label">AI Health Status</span>
+      <span class="ai-badge idle" id="aiBadge">IDLE</span>
+    </div>
+    <div class="ai-message" id="aiMessage">Connect device and place finger on sensor to begin monitoring.</div>
+    <div class="ai-recommendation" id="aiRec">Readings will update every few seconds once connected.</div>
+  </div>
+
+  <div class="history-card">
+    <div class="history-label">HR History (last 20 readings)</div>
+    <div class="history-row" id="historyBars"></div>
+  </div>
+
+  <div class="disclaimer">
+    ⚠ Not a medical device. For educational use only. Always consult a healthcare professional for medical advice.
+  </div>
+
+  <div class="footer">
+    ArmGuard Health Monitor v1.1<br>
+    Arduino Nano ESP32 + MAX30102 + TMP117
+  </div>
+</div>
+
+<script>
+const SERVICE_UUID   = '0000180d-0000-1000-8000-00805f9b34fb';
+const CHAR_UUID_HR   = '00002a37-0000-1000-8000-00805f9b34fb';
+const CHAR_UUID_SPO2 = '00002a5f-0000-1000-8000-00805f9b34fb';
+const CHAR_UUID_TEMP = '00002a6e-0000-1000-8000-00805f9b34fb';
+
+let bleDevice = null, bleServer = null;
+let charHR = null, charSpO2 = null, charTemp = null;
+let connected = false;
+let lastHR = 0, lastSpO2 = 0, lastTempF = 0;
+let hrHistory = [];
+let analysisTimer = null;
+
+window.onload = () => {
+  if (!navigator.bluetooth) {
+    document.getElementById('notSupported').style.display = 'block';
+    document.getElementById('connectBtn').disabled = true;
+    document.getElementById('connectBtn').style.opacity = '0.4';
+  }
+  initHistoryBars();
+};
+
+function initHistoryBars() {
+  const c = document.getElementById('historyBars');
+  c.innerHTML = '';
+  for (let i = 0; i < 20; i++) {
+    const b = document.createElement('div');
+    b.className = 'history-bar';
+    b.style.height = '4px';
+    c.appendChild(b);
+  }
+}
+
+async function toggleConnect() {
+  if (connected) disconnect();
+  else await connect();
+}
+
+async function connect() {
+  try {
+    setConnectState('connecting');
+    bleDevice = await navigator.bluetooth.requestDevice({
+      filters: [{ name: 'HealthMonitor' }],
+      optionalServices: [SERVICE_UUID]
+    });
+    bleDevice.addEventListener('gattserverdisconnected', onDisconnected);
+    bleServer = await bleDevice.gatt.connect();
+    const service = await bleServer.getPrimaryService(SERVICE_UUID);
+
+    charHR = await service.getCharacteristic(CHAR_UUID_HR);
+    await charHR.startNotifications();
+    charHR.addEventListener('characteristicvaluechanged', onHRReceived);
+
+    charSpO2 = await service.getCharacteristic(CHAR_UUID_SPO2);
+    await charSpO2.startNotifications();
+    charSpO2.addEventListener('characteristicvaluechanged', onSpO2Received);
+
+    charTemp = await service.getCharacteristic(CHAR_UUID_TEMP);
+    await charTemp.startNotifications();
+    charTemp.addEventListener('characteristicvaluechanged', onTempReceived);
+
+    setConnectState('connected');
+    analysisTimer = setInterval(runAIAnalysis, 30000);
+  } catch (err) {
+    console.error(err);
+    setConnectState('disconnected');
+    if (err.name === 'NotFoundError') {
+      updateAIMessage('Device not found. Make sure the ESP32 is powered on.', 'idle', '');
+    }
+  }
+}
+
+function disconnect() {
+  if (analysisTimer) clearInterval(analysisTimer);
+  if (bleDevice && bleDevice.gatt.connected) bleDevice.gatt.disconnect();
+  setConnectState('disconnected');
+}
+
+function onDisconnected() {
+  if (analysisTimer) clearInterval(analysisTimer);
+  setConnectState('disconnected');
+  updateAIMessage('Device disconnected.', 'idle', '');
+}
+
+function onHRReceived(e) {
+  const hr = e.target.value.getInt32(0, true);
+  if (hr > 0 && hr < 250) {
+    lastHR = hr;
+    updateHRDisplay(hr);
+    addHRHistory(hr);
+    checkThresholds();
+  }
+}
+
+function onSpO2Received(e) {
+  const s = e.target.value.getInt32(0, true);
+  if (s > 0 && s <= 100) {
+    lastSpO2 = s;
+    updateSpO2Display(s);
+    checkThresholds();
+  }
+}
+
+function onTempReceived(e) {
+  const raw = e.target.value.getInt32(0, true);
+  const tempF = raw / 100.0;
+  if (tempF > 50 && tempF < 120) {
+    lastTempF = tempF;
+    updateTempDisplay(tempF);
+    checkThresholds();
+  }
+}
+
+function updateHRDisplay(hr) {
+  const el = document.getElementById('hrValue');
+  const card = document.getElementById('hrCard');
+  el.classList.remove('loading', 'pending');
+  let cls = 'normal', color = 'var(--green)';
+  if (hr < 40 || hr > 130) { cls = 'danger'; color = 'var(--red)'; }
+  else if (hr < 50 || hr > 100) { cls = 'warning'; color = 'var(--yellow)'; }
+  el.className = `metric-value ${cls}`;
+  el.textContent = hr;
+  card.style.setProperty('--accent-color', color);
+  el.classList.add('beating');
+  setTimeout(() => el.classList.remove('beating'), 1000);
+  updateWaveform('hrWave', hr, 40, 130, color);
+}
+
+function updateSpO2Display(spo2) {
+  const el = document.getElementById('spo2Value');
+  const card = document.getElementById('spo2Card');
+  el.classList.remove('loading', 'pending');
+  let cls = 'normal', color = 'var(--blue)';
+  if (spo2 < 90) { cls = 'danger'; color = 'var(--red)'; }
+  else if (spo2 < 95) { cls = 'warning'; color = 'var(--yellow)'; }
+  el.className = `metric-value ${cls}`;
+  el.textContent = spo2;
+  card.style.setProperty('--accent-color', color);
+  updateWaveform('spo2Wave', spo2, 70, 100, color);
+}
+
+function updateTempDisplay(tempF) {
+  const el = document.getElementById('tempValue');
+  const card = document.getElementById('tempCard');
+  const celsiusEl = document.getElementById('tempCelsius');
+  el.classList.remove('loading', 'pending');
+  let cls = 'temp-normal', color = 'var(--blue)';
+  if (tempF >= 100.4) { cls = 'temp-fever'; color = 'var(--red)'; }
+  else if (tempF >= 99.0) { cls = 'temp-warm'; color = 'var(--orange)'; }
+  el.className = `metric-value ${cls}`;
+  el.textContent = tempF.toFixed(1) + '°';
+  el.style.fontSize = '44px';
+  card.style.setProperty('--accent-color', color);
+  const tempC = (tempF - 32) * 5 / 9;
+  celsiusEl.textContent = tempC.toFixed(1) + ' °C';
+}
+
+const waveHistory = { hrWave: [], spo2Wave: [] };
+
+function updateWaveform(id, value, min, max, color) {
+  const hist = waveHistory[id];
+  hist.push(value);
+  if (hist.length > 20) hist.shift();
+  const points = hist.map((v, i) => {
+    const x = (i / 19) * 100;
+    const n = (v - min) / (max - min);
+    const y = 28 - n * 24;
+    return `${x},${y}`;
+  }).join(' ');
+  const el = document.getElementById(id);
+  if (el) {
+    el.setAttribute('points', points);
+    el.setAttribute('stroke', color);
+  }
+}
+
+function addHRHistory(hr) {
+  hrHistory.push(hr);
+  if (hrHistory.length > 20) hrHistory.shift();
+  const bars = document.querySelectorAll('#historyBars .history-bar');
+  const min = Math.min(...hrHistory, 40);
+  const max = Math.max(...hrHistory, 100);
+  const range = max - min || 1;
+  bars.forEach((bar, i) => {
+    if (i < hrHistory.length) {
+      const val = hrHistory[i];
+      const pct = (val - min) / range;
+      bar.style.height = (8 + pct * 32) + 'px';
+      bar.style.background = val > 100 ? 'var(--red)' : val > 80 ? 'var(--yellow)' : 'var(--green)';
+      bar.style.opacity = '0.6';
+    } else {
+      bar.style.height = '4px';
+      bar.style.background = 'var(--border)';
+      bar.style.opacity = '1';
+    }
+  });
+}
+
+function checkThresholds() {
+  if (lastTempF >= 100.4) {
+    updateAIMessage(
+      `Elevated body temperature of ${lastTempF.toFixed(1)}°F detected — possible fever.`,
+      'danger',
+      '→ Rest, hydrate, monitor. See doctor if temperature rises or persists.'
+    );
+    return;
+  }
+  if (lastHR > 130 || lastSpO2 < 90) {
+    updateAIMessage(
+      lastSpO2 < 90
+        ? `Blood oxygen critically low at ${lastSpO2}%. This requires immediate medical attention.`
+        : `Heart rate very elevated at ${lastHR} BPM. Sit down and rest immediately.`,
+      'danger',
+      '→ Seek medical attention now or call emergency services.'
+    );
+  } else if (lastHR > 100 || lastSpO2 < 95 || lastTempF >= 99.0) {
+    let msg = '';
+    if (lastTempF >= 99.0) msg = `Body temperature slightly elevated at ${lastTempF.toFixed(1)}°F.`;
+    else if (lastSpO2 < 95) msg = `SpO2 reading of ${lastSpO2}% is slightly below normal.`;
+    else msg = `Heart rate of ${lastHR} BPM is mildly elevated.`;
+    updateAIMessage(msg, 'warning', '→ Rest and monitor for 10 minutes.');
+  } else if (lastHR >= 50 && lastHR <= 100 && lastSpO2 >= 95 && lastTempF > 0 && lastTempF < 99.0) {
+    updateAIMessage(
+      `HR ${lastHR} BPM, SpO2 ${lastSpO2}%, Temp ${lastTempF.toFixed(1)}°F — all within healthy ranges.`,
+      'normal',
+      '→ No action needed. Keep monitoring.'
+    );
+  }
+}
+
+async function runAIAnalysis() {
+  if (hrHistory.length < 3 || lastSpO2 === 0) return;
+  const recentHR = hrHistory.slice(-10);
+  const avgHR = Math.round(recentHR.reduce((a, b) => a + b, 0) / recentHR.length);
+  try {
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-6',
+        max_tokens: 200,
+        system: 'You are a concise health monitoring assistant. Analyze biometric readings and give a 1-2 sentence plain English status. Always end with whether the person should see a doctor. You are not a diagnostic device.',
+        messages: [{
+          role: 'user',
+          content: `Recent HR: ${recentHR.join(', ')} BPM (avg ${avgHR}). SpO2: ${lastSpO2}%. Temp: ${lastTempF.toFixed(1)}°F. Brief health status.`
+        }]
+      })
+    });
+    const data = await response.json();
+    if (data.content && data.content[0]) {
+      const msg = data.content[0].text;
+      const status = lastTempF >= 100.4 || lastHR > 130 || lastSpO2 < 90 ? 'danger'
+                   : lastTempF >= 99 || lastHR > 100 || lastSpO2 < 95 ? 'warning' : 'normal';
+      updateAIMessage(msg, status, '→ AI analysis updated.');
+    }
+  } catch {
+    checkThresholds();
+  }
+}
+
+function updateAIMessage(message, status, rec) {
+  document.getElementById('aiMessage').textContent = message;
+  document.getElementById('aiRec').textContent = rec;
+  const badge = document.getElementById('aiBadge');
+  badge.className = `ai-badge ${status}`;
+  badge.textContent = status.toUpperCase();
+}
+
+function setConnectState(state) {
+  const btn = document.getElementById('connectBtn');
+  const text = document.getElementById('connectText');
+  const dot = document.getElementById('statusDot');
+  if (state === 'connected') {
+    connected = true;
+    btn.className = 'connect-btn connected';
+    text.textContent = 'Disconnect';
+    dot.className = 'status-dot connected';
+    updateAIMessage('Connected! Place your finger firmly on the sensor.', 'idle', '→ Waiting for first reading...');
+  } else if (state === 'connecting') {
+    btn.className = 'connect-btn';
+    text.textContent = 'Connecting...';
+    dot.className = 'status-dot';
+  } else {
+    connected = false;
+    lastHR = 0; lastSpO2 = 0; lastTempF = 0;
+    btn.className = 'connect-btn';
+    text.textContent = 'Connect to HealthMonitor';
+    dot.className = 'status-dot';
+    ['hrValue', 'spo2Value', 'tempValue'].forEach(id => {
+      const el = document.getElementById(id);
+      el.textContent = '--';
+      el.className = 'metric-value pending loading';
+    });
+    document.getElementById('tempCelsius').textContent = '-- °C';
+    ['hrCard', 'spo2Card', 'tempCard'].forEach(id => {
+      document.getElementById(id).style.setProperty('--accent-color', 'var(--muted)');
+    });
+  }
+}
+</script>
+</body>
+</html>
